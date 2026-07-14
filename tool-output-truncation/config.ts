@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 
 export interface TruncationConfig {
@@ -13,7 +14,7 @@ export const DEFAULT_CONFIG: TruncationConfig = {
 	maxChars: 40000,
 	headChars: 19000,
 	tailChars: 19000,
-	artifactDirectory: ".pi/artifacts/tool-output",
+	artifactDirectory: join(homedir(), ".pi", "agent", "artifacts", "tool-output"),
 	maxInspectionChars: 20000,
 };
 
@@ -38,6 +39,8 @@ export function validateConfig(value: unknown): Partial<TruncationConfig> {
 export function mergeConfig(...parts: Array<Partial<TruncationConfig>>): TruncationConfig {
 	const config = Object.assign({}, DEFAULT_CONFIG, ...parts);
 	validateConfig(config);
+	if (config.artifactDirectory === "~") config.artifactDirectory = homedir();
+	else if (config.artifactDirectory.startsWith("~/")) config.artifactDirectory = join(homedir(), config.artifactDirectory.slice(2));
 	if (config.headChars + config.tailChars > config.maxChars) throw new Error("headChars + tailChars must not exceed maxChars");
 	return config;
 }

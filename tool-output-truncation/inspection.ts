@@ -8,9 +8,10 @@ const ARTIFACT = /^tool-output-[a-z0-9_-]+-[0-9a-f-]{36}\.log$/i;
 
 async function artifactPath(directory: string, requested: string, cwd: string): Promise<string> {
 	if (!requested || isAbsolute(requested) || requested.split(/[\\/]/).includes("..") || !ARTIFACT.test(basename(requested))) throw new Error("artifact path must name an extension artifact beneath the configured directory");
-	const root = await realpath(directory);
-	const candidate = requested === basename(requested) ? resolve(root, requested) : resolve(cwd, requested);
-	if (relative(root, candidate).startsWith("..") || relative(root, candidate).includes(`..${sep}`)) throw new Error("artifact path escapes configured directory");
+	const configuredRoot = resolve(directory);
+	const root = await realpath(configuredRoot);
+	const candidate = requested === basename(requested) ? resolve(configuredRoot, requested) : resolve(cwd, requested);
+	if (relative(configuredRoot, candidate).startsWith("..") || relative(configuredRoot, candidate).includes(`..${sep}`)) throw new Error("artifact path escapes configured directory");
 	const stat = await lstat(candidate);
 	if (!stat.isFile() || stat.isSymbolicLink()) throw new Error("artifact must be a regular non-symlink file");
 	const actual = await realpath(candidate);

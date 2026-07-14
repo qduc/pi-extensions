@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, mkdir, symlink, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_CONFIG, loadConfig, mergeConfig, validateConfig } from "./config.ts";
 import { FileArtifactWriter, truncateToolOutput } from "./core.ts";
@@ -19,7 +19,7 @@ test("leaves empty, below-limit, and exact-limit text unchanged", async () => {
 
 test("stores exact oversized output and reports mechanical retained ranges", async () => {
 	const dir = await temp(); const original = "a".repeat(300) + "MIDDLE" + "z".repeat(300);
-	const result = await truncateToolOutput(original, config, { label: "bash", writer: new FileArtifactWriter(dir, dir) });
+	const result = await truncateToolOutput(original, config, { label: "bash", writer: new FileArtifactWriter(dir) });
 	assert.equal(result.truncated, true); assert.ok(result.text.length <= config.maxChars); assert.match(result.text, /Observed: 606 characters/);
 	assert.match(result.text, /Retained: characters 1-/); assert.ok(result.artifactPath);
 	assert.equal(await readFile(join(dir, result.artifactPath!), "utf8"), original);
@@ -42,13 +42,13 @@ test("does not split a surrogate pair and discloses failed artifact writes", asy
 });
 
 test("uses collision-resistant artifact names", async () => {
-	const dir = await temp(); const writer = new FileArtifactWriter(dir, dir);
+	const dir = await temp(); const writer = new FileArtifactWriter(dir);
 	const [one, two] = await Promise.all([writer.write("one", "bash"), writer.write("two", "bash")]);
 	assert.notEqual(one, two); assert.equal(await readFile(join(dir, one), "utf8"), "one");
 });
 
 test("inspection bounds ranges, reports omitted matches, and rejects escapes", async () => {
-	const dir = await temp(); const writer = new FileArtifactWriter(dir, dir);
+	const dir = await temp(); const writer = new FileArtifactWriter(dir);
 	const name = await writer.write(Array.from({ length: 130 }, (_, i) => `hit ${i} ${"x".repeat(20)}`).join("\n"), "bash");
 	const search = await inspectToolOutput(dir, config, { path: name, operation: "literal", query: "hit" });
 	assert.ok(search.length <= config.maxInspectionChars); assert.match(search, /Additional matches omitted: \d+/);
@@ -71,6 +71,11 @@ test("configuration rejects unknown and inconsistent values", async () => {
 	assert.throws(() => validateConfig({ extra: true }), /unknown/);
 	assert.throws(() => mergeConfig({ maxChars: 511 }), /at least 512/);
 	assert.throws(() => mergeConfig({ maxChars: 512, headChars: 300, tailChars: 300 }), /must not exceed/);
+});
+
+test("stores artifacts outside the project by default and expands home-relative configuration", () => {
+	assert.equal(DEFAULT_CONFIG.artifactDirectory, join(homedir(), ".pi", "agent", "artifacts", "tool-output"));
+	assert.equal(mergeConfig({ artifactDirectory: "~/.cache/pi-tool-output" }).artifactDirectory, join(homedir(), ".cache", "pi-tool-output"));
 });
 
 test("trusted project configuration overrides global configuration", async () => {

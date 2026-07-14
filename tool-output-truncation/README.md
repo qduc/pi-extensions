@@ -21,14 +21,14 @@ Defaults are:
   "maxChars": 40000,
   "headChars": 19000,
   "tailChars": 19000,
-  "artifactDirectory": ".pi/artifacts/tool-output",
+  "artifactDirectory": "~/.pi/agent/artifacts/tool-output",
   "maxInspectionChars": 20000
 }
 ```
 
-Put global settings in `~/.pi/agent/tool-output-truncation.json`. A trusted project may override individual settings in `.pi/tool-output-truncation.json`. Only the five documented keys are accepted. Limits must be positive safe integers, `maxChars` and `maxInspectionChars` must be at least 512 so notices remain explicit, and head plus tail cannot exceed `maxChars`.
+Put global settings in `~/.pi/agent/tool-output-truncation.json`. A trusted project may override individual settings in `.pi/tool-output-truncation.json`. Only the five documented keys are accepted. Limits must be positive safe integers, `maxChars` and `maxInspectionChars` must be at least 512 so notices remain explicit, and head plus tail cannot exceed `maxChars`. A leading `~/` in `artifactDirectory` expands to the user's home directory.
 
-Artifacts have collision-resistant generated names and contain the exact text observed by this extension. `inspect_tool_output` accepts either the project-relative path shown in the truncation notice or its bare artifact filename, plus an operation: `head`, `tail`, `characters`, `lines`, `literal`, or `regex`. Reads and searches are always limited by `maxInspectionChars`; artifact paths cannot be absolute, traverse directories, or use symlinks.
+By default, artifacts are stored under Pi's user directory rather than the current project, so they do not appear as untracked Git files. Artifacts have collision-resistant generated names and contain the exact text observed by this extension. `inspect_tool_output` accepts the artifact filename shown in the truncation notice (and project-relative paths from older versions), plus an operation: `head`, `tail`, `characters`, `lines`, `literal`, or `regex`. Reads and searches are always limited by `maxInspectionChars`; artifact paths cannot be absolute, traverse directories, or use symlinks.
 
 ## API limitation
 

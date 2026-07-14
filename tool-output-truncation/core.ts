@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { basename, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import type { TruncationConfig } from "./config.ts";
 
 export interface ArtifactWriter { write(text: string, label: string): Promise<string>; }
@@ -25,9 +25,10 @@ export class FileArtifactWriter implements ArtifactWriter {
 	async write(text: string, label: string): Promise<string> {
 		await mkdir(this.directory, { recursive: true });
 		const name = `tool-output-${label.replace(/[^a-z0-9_-]/gi, "-").slice(0, 40) || "result"}-${randomUUID()}.log`;
-		const path = `${this.directory}/${name}`;
+		const path = join(this.directory, name);
 		await writeFile(path, text, "utf8");
-		return relative(this.cwd, path) || basename(path);
+		const projectRelative = relative(this.cwd, path);
+		return projectRelative === ".." || projectRelative.startsWith(`..${sep}`) ? name : projectRelative || name;
 	}
 }
 
