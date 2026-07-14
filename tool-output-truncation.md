@@ -77,7 +77,8 @@ The extension should support a small configuration surface:
 
 Constraints:
 
-* All limits must be positive integers.
+* All limits must be positive safe integers.
+* `maxChars` and `maxInspectionChars` must be at least 512 characters so truncation can always be disclosed.
 * `headChars + tailChars` must not exceed `maxChars`.
 * `maxChars` includes the truncation notice and retained excerpts.
 * Invalid configuration must produce a clear startup error.

@@ -1,0 +1,7 @@
+{
+  "maxChars": 40000,
+  "headChars": 19000,
+  "tailChars": 19000,
+  "artifactDirectory": ".pi/artifacts/tool-output",
+  "maxInspectionChars": 20000
+}
