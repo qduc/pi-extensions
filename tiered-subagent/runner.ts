@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import type { Message } from "@earendil-works/pi-ai";
 import type { AgentToolResult } from "@earendil-works/pi-agent-core";
-import type { AgentMode, DelegationResult, ModelProfile, Tier, UsageStats } from "./types.ts";
+import type { AgentMode, AgentType, DelegationResult, ModelProfile, Tier, UsageStats } from "./types.ts";
 
 export interface RouteDecision { tier: Tier; mode: AgentMode; reason: string; category: string; }
 export interface RunUpdate { phase: string; text: string; model?: string; reasoning?: string; elapsedMs: number; }
@@ -121,6 +121,7 @@ function normalizeResult(value: Record<string, unknown>): DelegationResult {
 
 export async function runChild(options: {
 	cwd: string; extensionDir: string; safetyGatePath?: string; profile: ModelProfile; mode: AgentMode;
+	agentType?: AgentType;
 	task: string; expectedOutcome: string; context: string; constraints: string; scopes: string[]; protectedPaths: string[];
 	tools: string[]; timeoutMs: number; signal?: AbortSignal; onUpdate?: Update;
 }): Promise<ChildRunResult> {
@@ -133,7 +134,10 @@ export async function runChild(options: {
 	if (options.safetyGatePath && existsSync(options.safetyGatePath)) args.push("-e", options.safetyGatePath);
 	if (options.mode === "advisor") args.push("--tools", "submit_delegation_result");
 	else args.push("--tools", options.tools.join(","));
-	const prompt = `You are an ephemeral ${options.mode} subagent. Stay strictly within the delegated scope. Do not delegate. Do not broaden the task. Lower-cost execution must report uncertainty rather than guess. Call submit_delegation_result exactly once with concise evidence when done or blocked.\n\nTASK\n${options.task}\n\nEXPECTED OUTCOME\n${options.expectedOutcome}\n\nEXPLICIT CONTEXT\n${options.context || "(none)"}\n\nCONSTRAINTS\n${options.constraints || "(none)"}\n\nALLOWED FILE SCOPE\n${options.scopes.join("\n")}`;
+	const identity = options.agentType === "explorer"
+		? "explorer subagent. Search and inspect the repository without modifying files or running commands"
+		: `${options.mode} subagent`;
+	const prompt = `You are an ephemeral ${identity}. Stay strictly within the delegated scope. Do not delegate. Do not broaden the task. Lower-cost execution must report uncertainty rather than guess. Call submit_delegation_result exactly once with concise evidence when done or blocked.\n\nTASK\n${options.task}\n\nEXPECTED OUTCOME\n${options.expectedOutcome}\n\nEXPLICIT CONTEXT\n${options.context || "(none)"}\n\nCONSTRAINTS\n${options.constraints || "(none)"}\n\nALLOWED FILE SCOPE\n${options.scopes.join("\n")}`;
 	args.push(prompt);
 	options.onUpdate?.({ content: [{ type: "text", text: `started ${actualModel}:${options.profile.reasoning}` }], details: { phase: "started", model: actualModel, reasoning: options.profile.reasoning, elapsedMs: 0 } });
 	const run = await runProcess({

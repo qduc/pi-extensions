@@ -7,6 +7,7 @@ An initial implementation of one `delegate` tool that routes bounded work to an 
 - lower/default/higher provider-independent tiers
 - LLM routing for automatic selection; explicit tier preference takes precedence
 - worker and advisor modes
+- explorer agent type for lower-tier, read-only repository search
 - isolated context (task, expected outcome, explicit context, constraints, repository context files/skills)
 - model/reasoning selection with current-model fallback
 - hard prohibition of `gpt-5.6-sol` with `max` reasoning
@@ -48,11 +49,14 @@ The parent calls `delegate` with:
 - `expectedOutcome`
 - optional concise `context`
 - optional `constraints`
+- optional `agentType` (`explorer`)
 - optional `preferredTier`
 - optional `mode`
 - optional `fileScope`
 
 Use narrow, non-overlapping `fileScope` values for concurrent workers. With the default `.` scope, only one worker can reserve the workspace at a time.
+
+`agentType: "explorer"` is a deterministic specialization for repository search and inspection. It always selects the configured `lower` model and worker mode, regardless of `preferredTier` or `mode`, and exposes only `read`, `grep`, `find`, `ls`, and structured result submission. Use a normal worker for commands or file changes.
 
 ## Safety model
 

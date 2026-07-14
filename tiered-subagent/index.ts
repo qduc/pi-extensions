@@ -5,10 +5,10 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { loadConfig } from "./config.ts";
-import { DELEGATE_MODE_DESCRIPTION, DELEGATE_PROMPT_GUIDELINES } from "./delegate-interface.ts";
+import { DELEGATE_MODE_DESCRIPTION, DELEGATE_PROMPT_GUIDELINES, EXPLORER_TOOLS } from "./delegate-interface.ts";
 import { classifyTask, defaultSafetyGatePath, extensionDirectory, runChild } from "./runner.ts";
 import { canonicalize, isInside, resolveScopes, scopesOverlap } from "./scope.ts";
-import type { AgentMode, ModelProfile, Tier } from "./types.ts";
+import type { AgentMode, AgentType, ModelProfile, Tier } from "./types.ts";
 
 interface ActiveRun { id: string; task: string; mode: AgentMode; scopes: string[]; started: number; phase: string; }
 const active = new Map<string, ActiveRun>();
@@ -65,6 +65,7 @@ export default function tieredSubagent(pi: ExtensionAPI) {
 			expectedOutcome: Type.String({ description: "Observable expected result and acceptance evidence" }),
 			context: Type.Optional(Type.String({ description: "Only concise context intentionally supplied to the child" })),
 			constraints: Type.Optional(Type.String({ description: "Applicable safety, compatibility, and execution constraints" })),
+			agentType: Type.Optional(StringEnum(["explorer"] as const, { description: "Specialized role. explorer performs read-only repository search using the lower tier." })),
 			preferredTier: Type.Optional(StringEnum(["lower", "default", "higher"] as const)),
 			mode: Type.Optional(StringEnum(["worker", "advisor"] as const, { description: DELEGATE_MODE_DESCRIPTION })),
 			fileScope: Type.Optional(Type.Array(Type.String(), { description: "Paths this worker may inspect or modify" })),
@@ -77,11 +78,12 @@ export default function tieredSubagent(pi: ExtensionAPI) {
 			if (depth >= config.maxDelegationDepth) throw new Error(`Maximum delegation depth ${config.maxDelegationDepth} reached.`);
 			if (active.size >= config.maxConcurrentAgents) throw new Error(`Maximum concurrent agents (${config.maxConcurrentAgents}) reached.`);
 
+			const agentType = params.agentType as AgentType | undefined;
 			const modeHint = params.mode as AgentMode | undefined;
 			let scopes: string[];
 			try { scopes = resolveScopes(ctx.cwd, params.fileScope ?? [], config.allowedPaths, config.protectedPaths); }
 			catch (error) { throw new Error(error instanceof Error ? error.message : String(error)); }
-			const provisionalMode: AgentMode = modeHint ?? "worker";
+			const provisionalMode: AgentMode = agentType === "explorer" ? "worker" : modeHint ?? "worker";
 			if (provisionalMode === "worker") {
 				const conflict = [...active.values()].find((run) => run.mode === "worker" && scopesOverlap(scopes, run.scopes));
 				if (conflict) throw new Error(`Requested file scope overlaps active task ${conflict.id}: ${conflict.task}`);
@@ -108,7 +110,10 @@ export default function tieredSubagent(pi: ExtensionAPI) {
 				let mode: AgentMode;
 				let routeReason: string;
 				let category = "explicit";
-				if (params.preferredTier) {
+				if (agentType === "explorer") {
+					tier = "lower"; mode = "worker"; category = "repository exploration";
+					routeReason = "Explorer agent type selected the lower tier and read-only repository tools.";
+				} else if (params.preferredTier) {
 					tier = params.preferredTier as Tier; mode = modeHint ?? (tier === "higher" ? "advisor" : "worker");
 					routeReason = `Explicit ${tier} tier request took precedence.`;
 				} else {
@@ -135,13 +140,14 @@ export default function tieredSubagent(pi: ExtensionAPI) {
 				publish(ctx, run, "assigned", { tier, model: profileName(selected.profile), reasoning: selected.profile.reasoning, routeReason });
 				const child = await runChild({
 					cwd: ctx.cwd, extensionDir: extensionDirectory, safetyGatePath: defaultSafetyGatePath, profile: selected.profile, mode,
+					agentType,
 					task: params.task, expectedOutcome: params.expectedOutcome, context: params.context ?? "", constraints: params.constraints ?? "",
-					scopes, protectedPaths: config.protectedPaths, tools: [...new Set([...config.workerTools, "submit_delegation_result"])],
+					scopes, protectedPaths: config.protectedPaths, tools: agentType === "explorer" ? [...EXPLORER_TOOLS] : [...new Set([...config.workerTools, "submit_delegation_result"])],
 					timeoutMs: config.timeoutMs, signal,
 					onUpdate: (partial) => { publish(ctx, run, String((partial.details as any)?.phase ?? "running")); onUpdate?.(partial); },
 				});
 				publish(ctx, run, child.result.status, { tier, model: child.model, cost: child.usage.cost });
-				const metadata = { delegationId: run.id, tier, mode, category, routeReason, model: child.model, reasoning: child.reasoning, tokenUse: child.usage, cost: child.usage.cost, latencyMs: child.latencyMs, scopes: scopes.map((path) => relative(ctx.cwd, path) || "."), exitCode: child.exitCode, stderr: child.stderr };
+				const metadata = { delegationId: run.id, agentType, tier, mode, category, routeReason, model: child.model, reasoning: child.reasoning, tokenUse: child.usage, cost: child.usage.cost, latencyMs: child.latencyMs, scopes: scopes.map((path) => relative(ctx.cwd, path) || "."), exitCode: child.exitCode, stderr: child.stderr };
 				let text = JSON.stringify({ ...child.result, metadata }, null, 2);
 				if (Buffer.byteLength(text, "utf8") > config.maxOutputBytes) text = `${text.slice(0, config.maxOutputBytes)}\n[Result truncated; full structured result remains in tool details.]`;
 				return { content: [{ type: "text", text }], details: { result: child.result, metadata } };
@@ -151,7 +157,7 @@ export default function tieredSubagent(pi: ExtensionAPI) {
 			}
 		},
 		renderCall(args, theme) {
-			const routing = `${args.preferredTier ?? "auto"}/${args.mode ?? "auto"}`;
+			const routing = args.agentType ?? `${args.preferredTier ?? "auto"}/${args.mode ?? "auto"}`;
 			return new Text(`${theme.fg("toolTitle", theme.bold("delegate "))}${theme.fg("dim", `${routing} · `)}${theme.fg("accent", compactLine(args.task))}`, 0, 0);
 		},
 		renderResult(result, { expanded, isPartial }, theme) {

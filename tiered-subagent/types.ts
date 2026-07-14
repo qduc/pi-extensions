@@ -1,6 +1,7 @@
 export const TIERS = ["lower", "default", "higher"] as const;
 export type Tier = (typeof TIERS)[number];
 export type AgentMode = "worker" | "advisor";
+export type AgentType = "explorer";
 export type CompletionStatus =
 	| "completed"
 	| "completed with uncertainty"
