@@ -2,7 +2,7 @@
 
 Overrides Pi's built-in `read`, `bash`, `edit`, and `write` renderers without changing their execution behavior.
 
-Collapsed output shows a short status or count. Use Pi's expand-tool-output keybinding (`Ctrl+E` by default) to inspect read, shell, and diff previews.
+Collapsed output shows a short status or count. Press `Ctrl+O` to expand or collapse read, shell, and diff previews.
 
 ## Install for development
 
