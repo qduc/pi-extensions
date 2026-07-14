@@ -1,0 +1,11 @@
+{
+  "name": "pi-tiered-subagent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "pi": { "extensions": ["./index.ts"] },
+  "scripts": {
+    "test": "node --test scope.test.ts interface.test.ts",
+    "check": "pi -e ./index.ts --list-models >/dev/null"
+  }
+}

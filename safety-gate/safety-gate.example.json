@@ -1,0 +1,14 @@
+{
+  "protectedPaths": ["production", "data/irreplaceable"],
+  "allowedExternalPaths": ["../shared-generated"],
+  "confirmCommands": ["^docker\\s+compose\\s+down\\b"],
+  "blockedCommands": ["^terraform\\s+(?:apply|destroy)\\b"],
+  "git": {
+    "forcePush": "block",
+    "hardReset": "confirm",
+    "deleteBranch": "confirm",
+    "rewriteHistory": "block",
+    "clean": "confirm",
+    "discardChanges": "confirm"
+  }
+}

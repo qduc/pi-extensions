@@ -1,0 +1,8 @@
+{
+  "name": "pi-concise-tool-output",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "pi": { "extensions": ["./index.ts"] },
+  "scripts": { "check": "pi -e ./index.ts --list-models >/dev/null" }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "pi-extension-manager",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "pi": { "extensions": ["./index.ts"] },
+  "scripts": { "check": "pi -e ./index.ts --list-models >/dev/null" }
+}
