@@ -1,0 +1,9 @@
+* text=auto eol=lf
+
+# Keep binary files out of text normalization.
+*.gif binary
+*.ico binary
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.webp binary
