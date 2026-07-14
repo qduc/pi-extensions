@@ -32,8 +32,12 @@ export default function selfLearningMemory(pi: ExtensionAPI) {
 		return settlements.settle(engine, settled, currentScope, maintenanceAbort.signal, extract);
 	};
 
-	pi.on("session_start", async (_event, ctx) => { currentScope = scopeFor(ctx); void checkpoint(false).catch(() => {}); await safe(ctx, async () => { engine = await createEngine(ctx, pi); active = newActiveSession(); maintenanceAbort = new AbortController(); }); });
-	pi.on("session_shutdown", () => { void checkpoint(false).catch(() => {}); maintenanceAbort.abort(); });
+	pi.on("session_start", async (_event, ctx) => {
+		await checkpoint(false).catch(() => {});
+		currentScope = scopeFor(ctx);
+		await safe(ctx, async () => { engine = await createEngine(ctx, pi); active = newActiveSession(); maintenanceAbort = new AbortController(); });
+	});
+	pi.on("session_shutdown", async () => { await checkpoint(false).catch(() => {}); maintenanceAbort.abort(); });
 	pi.on("input", (event) => { if (active.request) void checkpoint(false).catch(() => {}); active.request ||= event.text.slice(0, MAX_EVENT_TEXT); record("user", event.text); });
 	pi.on("message_end", (event) => { const role = event.message.role === "toolResult" ? "tool" : event.message.role; if (role === "user" || role === "assistant" || role === "tool") record(role, eventText(event.message)); });
 	pi.on("tool_result", (event) => { record("tool", `${event.toolName}: ${textOf(event.content)}`, event.toolCallId); });
@@ -43,7 +47,7 @@ export default function selfLearningMemory(pi: ExtensionAPI) {
 			engine ??= await createEngine(ctx, pi);
 			active.request ||= event.prompt;
 			active.model = profileFor(pi, ctx, event.systemPrompt);
-			const found = await engine.retrieve({ request: event.prompt, scope: scopeFor(ctx) });
+			const found = await engine.retrieve({ request: event.prompt, scope: scopeFor(ctx), includeProcedures: true });
 			return { systemPrompt: `${event.systemPrompt}${memoryInjection(event.prompt, found)}` };
 		} catch (error) { await safe(ctx, async () => { throw error; }); return undefined; }
 	});
@@ -55,12 +59,21 @@ export default function selfLearningMemory(pi: ExtensionAPI) {
 	}); });
 	pi.on("agent_settled", (_event, ctx) => { if (!engine || !active.request) return; record("system", "Pi agent settled"); currentScope = scopeFor(ctx); void checkpoint(true).catch((error) => { if (ctx.mode === "tui") ctx.ui.notify(`Self-learning memory: ${error instanceof Error ? error.message : String(error)}`, "warning"); }); /* Deliberately no automatic consolidation. */ });
 	registerMemoryTools(pi, getEngine, () => currentScope);
-	pi.registerCommand("memory", { description: "Memory: retrieve, inspect, sessions, extract, consolidate, or forget", handler: async (args, ctx) => {
-		const [command = "retrieve", ...rest] = args.trim().split(/\s+/); const value = rest.join(" "); const current = getEngine();
+	pi.registerCommand("memory", { description: "Memory: retrieve, inspect, sessions, review, status, extract, consolidate, forget, or purge", handler: async (args, ctx) => {
+		const [command = "retrieve", ...rest] = args.trim().split(/\s+/); const value = rest.join(" "); const current = getEngine(); const scope = scopeFor(ctx);
 		try {
-			if (command === "consolidate" && value && (!/^\d+$/.test(value) || Number(value) < 1)) throw new Error("consolidate limit must be a positive integer");
-			if (command === "forget" && !rest[0]) throw new Error("forget requires a nonempty memory id");
-			const result = command === "inspect" ? await current.inspect(value) : command === "sessions" ? await current.searchSessions(value) : command === "propose" ? await current.propose({ type: "fact", scope: scopeFor(ctx), statement: value, rationale: "explicit slash command", confidence: 1, sourceSessionId: "explicit-command", evidence: [], suggestedAction: "create" }) : command === "extract" ? await current.runExtraction(value || undefined) : command === "consolidate" ? await current.runConsolidation(value ? Number(value) : undefined) : command === "forget" ? await current.forget(rest[0], rest.slice(1).join(" ") || "slash command") : await current.retrieve({ request: args || "memory", scope: scopeFor(ctx) });
+			if (["consolidate", "review"].includes(command) && value && (!/^\d+$/.test(value) || Number(value) < 1)) throw new Error(`${command} limit must be a positive integer`);
+			if (["forget", "purge"].includes(command) && !rest[0]) throw new Error(`${command} requires a nonempty memory id`);
+			const result = command === "inspect" ? await current.inspect(value, scope)
+				: command === "sessions" ? await current.searchSessions(value, undefined, scope)
+				: command === "status" ? await current.status()
+				: command === "review" ? await current.pendingCandidates(value ? Number(value) : undefined, scope)
+				: command === "propose" ? await current.propose({ type: "fact", scope, statement: value, rationale: "explicit slash command", confidence: 1, sourceSessionId: "explicit-command", evidence: [], suggestedAction: "create" })
+				: command === "extract" ? await current.runExtraction(value || undefined, undefined, scope)
+				: command === "consolidate" ? await current.runConsolidation(value ? Number(value) : undefined, undefined, scope)
+				: command === "forget" ? await current.forget(rest[0], rest.slice(1).join(" ") || "slash command", scope)
+				: command === "purge" ? { purged: await current.purge(rest[0], scope) }
+				: await current.retrieve({ request: args || "memory", scope });
 			ctx.ui.notify(JSON.stringify(result, null, 2), "info");
 		} catch (error) { ctx.ui.notify(`Self-learning memory: ${error instanceof Error ? error.message : String(error)}`, "warning"); }
 	} });

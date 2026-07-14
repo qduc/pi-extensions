@@ -3,7 +3,7 @@ import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { MemoryState } from "./types.ts";
 
-export const emptyState = (): MemoryState => ({ version: 1, sessions: [], candidates: [], outcomes: [], memories: [] });
+export const emptyState = (): MemoryState => ({ version: 1, sessions: [], candidates: [], outcomes: [], memories: [], extractions: [] });
 
 export class JsonMemoryStore {
 	private readonly path: string;
@@ -16,6 +16,8 @@ export class JsonMemoryStore {
 			if (!parsed || typeof parsed !== "object" || (parsed as { version?: unknown }).version !== 1) throw new Error("unsupported memory state");
 			const state = parsed as MemoryState;
 			if (![state.sessions, state.candidates, state.outcomes, state.memories].every(Array.isArray)) throw new Error("invalid memory state arrays");
+			if (state.extractions === undefined) state.extractions = [];
+			if (!Array.isArray(state.extractions)) throw new Error("invalid extraction state");
 			return state;
 		} catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return emptyState(); throw error; }
 	}

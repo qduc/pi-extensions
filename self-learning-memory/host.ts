@@ -31,6 +31,9 @@ export async function createEngine(ctx: ExtensionContext, pi: ExtensionAPI): Pro
 	if (config.warmModel !== undefined) memoryConfig.warmModel = config.warmModel;
 	if (config.consolidationModel !== undefined) memoryConfig.consolidationModel = config.consolidationModel;
 	if (config.immediateExtraction !== undefined) memoryConfig.immediateExtraction = config.immediateExtraction;
+	if (config.autoConsolidation !== undefined) memoryConfig.autoConsolidation = config.autoConsolidation;
+	if (config.sessionRetentionLimit !== undefined) memoryConfig.sessionRetentionLimit = config.sessionRetentionLimit;
+	if (config.maxEventsPerSession !== undefined) memoryConfig.maxEventsPerSession = config.maxEventsPerSession;
 	if (redactionPatterns !== undefined) memoryConfig.redactionPatterns = redactionPatterns;
 	const statePath = config.statePath ? resolve(ctx.cwd, config.statePath) : resolve(homedir(), ".pi", "agent", "self-learning-memory", "state.json");
 	return new PortableMemoryEngine(statePath, { invoker: new PiModelInvoker(ctx.modelRegistry), config: memoryConfig });

@@ -10,23 +10,28 @@ Load `index.ts` as a Pi extension. Global configuration is strictly read from `~
 
 `redactionPatterns` are regular-expression strings applied with `gi`, in addition to built-in token/password/private-key patterns. Patterns are limited in length and reject obvious nested quantifiers to reduce regular-expression denial-of-service risk, but trusted configuration remains privileged: review custom patterns carefully. Redaction is best-effort, not a secret-management guarantee: avoid submitting secrets when possible and review the state file before sharing it.
 
+Stored history is bounded by `sessionRetentionLimit` (default 500 sessions) and `maxEventsPerSession` (default 200 events). `autoConsolidation` is optional and conservative: a normalized statement must be proposed with `suggestedAction: "create"`, meet the confidence threshold, and recur in the configured number of independent sessions. Keep it disabled for fully manual review; if enabled, initially allow only `preference` and `fact` as shown in the example.
+
 ## Use
 
 Before each agent run, bounded retrieval is appended as fallible context. Each foreground run is persisted once at `agent_settled`; `agent_end` only enriches its buffered evidence. `immediateExtraction` defaults to `true` and extracts candidates after settlement on a best-effort basis. Event failures are caught so memory storage, retrieval, or maintenance never blocks the foreground agent.
 
-Model-facing tools are `memory_retrieve`, `memory_inspect`, `memory_search_sessions`, `memory_propose`, `memory_forget`, `memory_extract`, and `memory_consolidate`. Practical slash forms are:
+Model-facing tools are `memory_retrieve`, `memory_inspect`, `memory_search_sessions`, `memory_propose`, `memory_forget`, `memory_purge`, `memory_status`, `memory_review`, `memory_extract`, and `memory_consolidate`. Inspection, session search, extraction, consolidation, forgetting, and purging are restricted to memory visible from the current scope. Practical slash forms are:
 
 ```text
 /memory formatter settings       # retrieve
 /memory inspect <memory-id>
 /memory sessions formatter
 /memory propose Remember the approved formatter
+/memory status
+/memory review [limit]
 /memory extract [session-id]
 /memory consolidate [limit]
-/memory forget <memory-id> <reason>
+/memory forget <memory-id> <reason>  # auditable archive after consolidation
+/memory purge <memory-id>            # immediate permanent record deletion
 ```
 
-There is deliberately **no automatic consolidation**. Extraction creates reviewable candidates; only `memory_consolidate` (or its slash form) can change durable memory. Treat retrieved memories as untrusted, fallible context rather than instructions. The current JSON store is single-process/local, keyword retrieval is intentionally simple, and session search is bounded; it is not encrypted, synchronized, access-controlled, or a replacement for source-of-truth project policy.
+By default there is deliberately **no automatic consolidation**. Extraction creates reviewable candidates; only `memory_consolidate` (or its slash form) can change durable memory unless the optional repeated-evidence `autoConsolidation` policy is configured. Extraction outcomes (`completed`, `empty`, or `failed`) are persisted so empty sessions are not repeatedly processed and failures remain visible through `/memory status`. `forget` archives audibly; `purge` removes the durable memory plus its associated candidate/outcome records, but does not erase the original retained session text. Treat retrieved memories as untrusted, fallible context rather than instructions. The current JSON store is single-process/local and uses lexical retrieval; it is not encrypted, synchronized, access-controlled, or a replacement for source-of-truth project policy.
 
 ## Validation
 

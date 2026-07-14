@@ -2,19 +2,27 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 import type { ModelProfile } from "./types.ts";
+import type { AutoConsolidationConfig } from "./config.ts";
 import { validateRedactionPattern } from "./config.ts";
 
-export interface AdapterConfig { statePath?: string; retrievalLimit?: number; cacheWindowMs?: number; economyModel?: ModelProfile; warmModel?: ModelProfile; consolidationModel?: ModelProfile; immediateExtraction?: boolean; redactionPatterns?: string[]; }
+export interface AdapterConfig { statePath?: string; retrievalLimit?: number; cacheWindowMs?: number; economyModel?: ModelProfile; warmModel?: ModelProfile; consolidationModel?: ModelProfile; immediateExtraction?: boolean; redactionPatterns?: string[]; autoConsolidation?: AutoConsolidationConfig; sessionRetentionLimit?: number; maxEventsPerSession?: number; }
 function strictConfig(value: unknown, source: string, allowStatePath: boolean): AdapterConfig {
 	if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${source}: configuration must be an object`);
-	const config = value as Record<string, unknown>; const known = new Set(["retrievalLimit", "cacheWindowMs", "economyModel", "warmModel", "consolidationModel", "immediateExtraction", "redactionPatterns", ...(allowStatePath ? ["statePath"] : [])]);
+	const config = value as Record<string, unknown>; const known = new Set(["retrievalLimit", "cacheWindowMs", "economyModel", "warmModel", "consolidationModel", "immediateExtraction", "redactionPatterns", "autoConsolidation", "sessionRetentionLimit", "maxEventsPerSession", ...(allowStatePath ? ["statePath"] : [])]);
 	for (const key of Object.keys(config)) if (!known.has(key)) throw new Error(`${source}: unknown configuration field: ${key}`);
 	if (config.retrievalLimit !== undefined && (!Number.isInteger(config.retrievalLimit) || (config.retrievalLimit as number) < 1)) throw new Error(`${source}: retrievalLimit must be a positive integer`);
 	if (config.cacheWindowMs !== undefined && (!Number.isInteger(config.cacheWindowMs) || (config.cacheWindowMs as number) < 0)) throw new Error(`${source}: cacheWindowMs must be a non-negative integer`);
 	if (config.statePath !== undefined && typeof config.statePath !== "string") throw new Error(`${source}: statePath must be a string`);
 	if (config.immediateExtraction !== undefined && typeof config.immediateExtraction !== "boolean") throw new Error(`${source}: immediateExtraction must be a boolean`);
+	for (const key of ["sessionRetentionLimit", "maxEventsPerSession"] as const) if (config[key] !== undefined && (!Number.isInteger(config[key]) || (config[key] as number) < 1)) throw new Error(`${source}: ${key} must be a positive integer`);
 	if (config.redactionPatterns !== undefined && (!Array.isArray(config.redactionPatterns) || !config.redactionPatterns.every((pattern) => typeof pattern === "string"))) throw new Error(`${source}: redactionPatterns must be an array of strings`);
 	for (const pattern of config.redactionPatterns as string[] ?? []) validateRedactionPattern(pattern);
+	if (config.autoConsolidation !== undefined) {
+		if (!config.autoConsolidation || typeof config.autoConsolidation !== "object" || Array.isArray(config.autoConsolidation)) throw new Error(`${source}: autoConsolidation must be an object`);
+		const auto = config.autoConsolidation as Record<string, unknown>; const autoKeys = new Set(["minimumConfidence", "minimumIndependentSessions", "allowedTypes"]);
+		for (const key of Object.keys(auto)) if (!autoKeys.has(key)) throw new Error(`${source}: unknown autoConsolidation field: ${key}`);
+		if (typeof auto.minimumConfidence !== "number" || auto.minimumConfidence < 0 || auto.minimumConfidence > 1 || !Number.isInteger(auto.minimumIndependentSessions) || (auto.minimumIndependentSessions as number) < 2 || !Array.isArray(auto.allowedTypes) || !auto.allowedTypes.length || !auto.allowedTypes.every((type) => typeof type === "string" && ["preference", "fact", "constraint", "decision", "lesson", "procedure"].includes(type))) throw new Error(`${source}: invalid autoConsolidation policy`);
+	}
 	for (const key of ["economyModel", "warmModel", "consolidationModel"] as const) { const model = config[key]; if (model === undefined) continue; if (!model || typeof model !== "object" || Array.isArray(model)) throw new Error(`${source}: ${key} must be a model profile`); const fields = model as Record<string, unknown>; for (const field of Object.keys(fields)) if (!new Set(["provider", "model", "thinking", "tools", "promptPrefix"]).has(field)) throw new Error(`${source}: unknown ${key} field: ${field}`); if (![fields.provider, fields.model, fields.thinking].every((field) => typeof field === "string" && field.length > 0) || (fields.tools !== undefined && (!Array.isArray(fields.tools) || !fields.tools.every((tool) => typeof tool === "string"))) || (fields.promptPrefix !== undefined && typeof fields.promptPrefix !== "string")) throw new Error(`${source}: ${key} requires string provider, model, thinking, optional tools, and promptPrefix`); }
 	return config as AdapterConfig;
 }

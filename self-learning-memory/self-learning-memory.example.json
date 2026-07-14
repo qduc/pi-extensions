@@ -2,7 +2,14 @@
   "statePath": ".pi/self-learning-memory/state.json",
   "retrievalLimit": 6,
   "cacheWindowMs": 600000,
-	"immediateExtraction": true,
+  "immediateExtraction": true,
+  "sessionRetentionLimit": 500,
+  "maxEventsPerSession": 200,
+  "autoConsolidation": {
+    "minimumConfidence": 0.9,
+    "minimumIndependentSessions": 2,
+    "allowedTypes": ["preference", "fact"]
+  },
   "economyModel": {
     "provider": "openai",
     "model": "gpt-4.1-mini",
@@ -13,13 +20,12 @@
     "model": "gpt-4.1-mini",
     "thinking": "low"
   },
-	"consolidationModel": {
-		"provider": "openai",
-		"model": "gpt-4.1-mini",
-		"thinking": "low"
-	},
+  "consolidationModel": {
+    "provider": "openai",
+    "model": "gpt-4.1-mini",
+    "thinking": "low"
+  },
   "redactionPatterns": [
-	"customer[-_ ]?id\\s*[:=]\\s*[^\\s,;]+"
+    "customer[-_ ]?id\\s*[:=]\\s*[^\\s,;]+"
   ]
 }
-

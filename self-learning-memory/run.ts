@@ -6,7 +6,7 @@ export function newActiveSession(): ActiveSession { return { id: randomUUID(), r
 export async function settleRun(engine: MemoryEngine, run: ActiveSession, scope: { kind: "workspace"; value?: string }, signal?: AbortSignal, extract = true): Promise<void> {
 	if (!run.request) return;
 	await engine.completeSession({ id: run.id, request: run.request, events: run.events, scope, model: run.model });
-	if (extract && (engine as { immediateExtractionEnabled?: boolean }).immediateExtractionEnabled !== false) try { await engine.runExtraction(run.id, signal); } catch { /* maintenance failures never affect the foreground run */ }
+	if (extract && (engine as { immediateExtractionEnabled?: boolean }).immediateExtractionEnabled !== false) try { await engine.runExtraction(run.id, signal, scope); } catch { /* maintenance failures never affect the foreground run */ }
 }
 
 /** Deduplicates lifecycle races while allowing a failed settlement to be retried later. */
